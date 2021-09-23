@@ -1,4 +1,6 @@
 use log::info;
+use proxy_wasm::traits::*;
+use proxy_wasm::types::*;
 use proxy_wasm as wasm;
 
 #[no_mangle]
@@ -6,31 +8,61 @@ pub fn _start() {
     proxy_wasm::set_log_level(wasm::types::LogLevel::Trace);
     proxy_wasm::set_http_context(
         |context_id, _root_context_id| -> Box<dyn wasm::traits::HttpContext> {
-            Box::new(HelloWorld { context_id })
+            Box::new(HttpHeaders { context_id })
         },
     )
 }
 
-struct HelloWorld {
+struct HttpHeaders {
     context_id: u32,
 }
 
-impl wasm::traits::Context for HelloWorld {}
+impl Context for HttpHeaders {}
 
-impl wasm::traits::HttpContext for HelloWorld {
-    fn on_http_request_headers(&mut self, num_headers: usize) -> wasm::types::Action {
-        info!("Got {} HTTP headers in #{}.", num_headers, self.context_id);
-        let headers = self.get_http_request_headers();
-        let mut authority = "";
-
-        for (name, value) in &headers {
-            if name == ":authority" {
-                authority = value;
-            }
+impl HttpContext for HttpHeaders {
+    fn on_http_request_headers(&mut self, _: usize) -> Action {
+        for (name, value) in &self.get_http_request_headers() {
+            info!("#{} -> {}: {}", self.context_id, name, value);
         }
 
-        self.set_http_request_header("x-hello", Some(&format!("Hello world from {}", authority)));
+        match self.get_http_request_header(":path") {
+            Some(path) if path == "/hello" => {
+                self.send_http_response(
+                    200,
+                    vec![("Hello", "World"), ("Powered-By", "proxy-wasm")],
+                    Some(b"Hello, World!\n"),
+                );
+                Action::Pause
+            }
+            _ => Action::Continue,
+        }
+    }
 
-        wasm::types::Action::Continue
+    fn on_http_request_body(&mut self, body_size: usize, end_of_stream: bool) -> Action {
+        info!("Begin: on_http_request_body");
+        
+        if !end_of_stream {
+            return Action::Pause;
+        }
+
+        if let Some(body_bytes) = self.get_http_request_body(0, body_size){
+            let body_str = String::from_utf8(body_bytes).unwrap();
+            info!("#{} <- {}", self.context_id, body_str);
+        }
+
+        info!("End: on_http_request_body");
+
+        return Action::Continue
+    }
+
+    fn on_http_response_headers(&mut self, _: usize) -> Action {
+        for (name, value) in &self.get_http_response_headers() {
+            info!("#{} <- {}: {}", self.context_id, name, value);
+        }
+        Action::Continue
+    }
+
+    fn on_log(&mut self) {
+        info!("#{} completed.", self.context_id);
     }
 }

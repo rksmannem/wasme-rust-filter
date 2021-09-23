@@ -11,3 +11,5 @@ rust_binary(
         "@proxy_wasm_rust_sdk//bazel/cargo:log",
     ],
 )
+
+

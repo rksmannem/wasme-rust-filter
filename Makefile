@@ -1,5 +1,5 @@
 REGISTRY?=webassemblyhub.io/rksmannem
-WASM_FILE_NAME?=dl-router-rust.wasm
+WASM_FILE_NAME?=dl-hello-headers.wasm
 RELEASE?=v0.1.0
 
 WASME?=wasme
@@ -7,6 +7,7 @@ BUILDER_IMAGE_NAME?=quay.io/solo-io/ee-builder:0.0.33
 
 .PHONY: build
 build:
+	# wasme build rust SOURCE_DIRECTORY [-b <bazel target>] -t <name:tag> [flags]
 	$(WASME) build rust . -i ${BUILDER_IMAGE_NAME}  -b . -t ${REGISTRY}/${WASM_FILE_NAME}:${RELEASE} -c runtime-config.json -v
 
 deploy-gloo:
